@@ -27,8 +27,8 @@ Stretch days if college needs it, but keep the order and the daily checks.
 | Owner | Ready to extend | First real task |
 |---|---|---|
 | A | `fleet/px4_sitl.sh`, `docker/px4.Dockerfile` | Build PX4, verify home position lands at Ooty (SIH may ignore `PX4_HOME_*`) |
-| B | `api/` (bus, store, commands), `fleet/adapter.py` | Run `fleet.smoke_test` against SITL; then planner → `adapter.fly()` loop |
-| C | `planner/`, `sim/`, `bench/` | Fix the wrong-prior tail (12% no-find runs); tune `ALERT_SIGMA_M`, claim radius |
+| B | `api/` (bus, store, commands, live planner), `fleet/adapter.py`, `fleet/run.py` | Run `fleet.smoke_test`, then `fleet.run --drones 3`, against SITL |
+| C | `planner/`, `sim/`, `bench/` | Remaining wrong-prior tail (5/99 no-find vs 1/99 grid): try a coverage floor or prior-trust decay; tune `ALERT_SIGMA_M` |
 | D | `perception/` | `data/fetch.sh hituav` → `prepare_hituav` → `train` → `metrics.json` |
 | E | `dashboard/` | Coverage %, mission timer, frame image in detection card |
 | F | `data/fetch.sh`, README, this plan | Use `data/osm.json` buildings in `sim/scenario.py` instead of synthetic hamlets |

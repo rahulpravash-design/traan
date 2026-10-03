@@ -62,7 +62,7 @@ python -m fleet.smoke_test --drones 3             # Day 1 check: arm, take off, 
 python -m fleet.run --drones 3                    # live loop: fly the API planner's legs (Day 4 check)
 ```
 
-Tests: `pytest` (21 tests: grid geometry, Bayes update, prior, allocation, no-fly routing, fast sim, API).
+Tests: `pytest` (29 tests: grid geometry, Bayes update, prior, allocation, sweep tracking, no-fly routing, fast sim, API and live loop).
 
 ## What "50%" means
 
@@ -73,7 +73,7 @@ Tests: `pytest` (21 tests: grid geometry, Bayes update, prior, allocation, no-fl
 | 3 | Planner: Bayesian map, updates, allocation, fixed no-fly zones | 20 | ◐ No live re-planning, no LOS-only mode | 15 | Prior, Bayes update, leg-scoring allocation, no-fly routing; drives the mock fleet live through the API |
 | 4 | Thermal perception: YOLO on HIT-UAV, frame replay in the loop | 15 | ◐ No multi-frame check, no Jetson/TensorRT | 5 | Training/eval scripts, replay, service written; **no model trained yet** |
 | 5 | Commander dashboard | 10 | ◐ Map, live drones, heatmap, confirm queue | 5 | All four working on the mock fleet, incl. alert pin → search → confirm |
-| 6 | Benchmark harness and results | 10 | ◐ 100 runs + wrong-prior test, no CIs | 5 | Runner + chart done; first fast-sim run below |
+| 6 | Benchmark harness and results | 10 | ◐ 100 runs + wrong-prior test, no CIs | 5 | Runner, chart, ablation done; fast-sim results below |
 | 7 | Comms-loss resilience: store-and-forward, relay drone | 10 | ❌ | 0 | — |
 | 8 | Ground robot + kit drop | 5 | ❌ | 0 | — |
 | 9 | Security: signed commands, JWT roles, audit log, sitreps | 10 | ❌ | 0 | Single command choke point in place (`api/commands.py`) |
@@ -83,23 +83,32 @@ Modules 7–9 and the half-finished parts are the 36-hour finale (sprints S3–S
 
 ## Benchmark (fast 2D sim, preliminary)
 
-`python -m bench.run --runs 100` → [`bench/results/fastsim_100.csv`](bench/results/fastsim_100.csv).
-SRTM terrain, 3 drones at 8 m/s, 50 m sensor strip, same seeds for both methods.
-Victims come from a debris-runout model the planner never sees.
+`python -m bench.run --runs 100 --methods bayes,grid,bayes_cell` →
+[`bench/results/fastsim_100.csv`](bench/results/fastsim_100.csv). SRTM terrain, 3 drones at 8 m/s,
+50 m sensor strip, same seeds **and the same detection luck** (pre-drawn per victim) for every method.
+Victims come from a debris-runout model the planner never sees. 56 victims landed inside the no-fly zone
+and are reported, not scored; one scenario had no reachable victim and is excluded (99 scored).
 
-| Prior | Method | Median time to first find | IQR | Victims found ≤ 20 min | Runs with no find in 60 min |
+| Prior | Method | Median time to first find | IQR | Reachable victims found ≤ 20 min | Runs with no find in 60 min |
 |---|---|---|---|---|---|
-| As built | Bayesian | 168 s | 136–200 s | 77.8% | 0 / 100 |
-| As built | Grid sweep | 1226 s | 668–1411 s | 22.4% | 1 / 100 |
-| Shifted 400 m | Bayesian | 660 s | 351–1092 s | 41.0% | **12 / 100** |
-| Shifted 400 m | Grid sweep | 1226 s | 668–1411 s | 22.4% | 1 / 100 |
+| As built | **Bayesian** | 164 s | 132–200 s | 94.2% | 0 / 99 |
+| As built | Grid sweep | 1232 s | 830–1446 s | 22.8% | 1 / 99 |
+| Shifted 400 m | **Bayesian** | 424 s | 234–674 s | 66.6% | **5 / 99** |
+| Shifted 400 m | Grid sweep | 1232 s | 830–1446 s | 22.8% | 1 / 99 |
+| As built | Bayesian, cell-greedy (old) | 168 s | 140–200 s | 86.1% | 0 / 99 |
+| Shifted 400 m | Bayesian, cell-greedy (old) | 652 s | 344–1108 s | 45.8% | 12 / 99 |
 
 ![Benchmark chart](bench/results/fastsim_100.png)
 
-**Read this carefully.** Both the victim model and the prior are ours, so the "as built" gap is an
-upper bound, not a field result. With a wrong prior, Bayes still wins on median, but **12% of runs find
-nobody in an hour versus 1% for the grid sweep**: greedy search keeps working a wrong hotspot. Fixing that
-tail (e.g. an exploration term, or a coverage floor) is open work. Not yet cross-checked in PX4 (Day 10).
+**Read this carefully.**
+- Both the victim model and the prior are ours, so the "as built" gap is an upper bound, not a field result.
+- With a 400 m wrong prior, Bayesian search is faster than the grid sweep in 79 of 99 paired scenarios,
+  but **5 runs find nobody in an hour versus 1 for the grid sweep**. In those runs the planner, trusting
+  its prior, re-searches the wrong area and covers only about two thirds of the grid in 60 min.
+- The first planner (pick the best cell by P / distance) had 12 such runs: it crawled in ~30 m overlapping
+  hops and covered only 36–44% of the area in an hour. Scoring whole legs by probability swept per metre
+  (`planner/allocate.py::assign_leg`) fixed most of that; the old planner stays in the table as an ablation.
+- Not yet cross-checked in PX4 SITL (Day 10).
 
 ## Repository layout
 
