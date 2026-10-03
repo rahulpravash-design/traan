@@ -81,3 +81,38 @@ def test_planner_never_targets_nofly_and_emits_contract_map_update():
     assert all(len(t) == 3 for t in mu["top_cells"])
     assert mu["top_cells"] == sorted(mu["top_cells"], key=lambda t: -t[2])
     assert top_cells(pl.P, 5)[0][:2] == mu["top_cells"][0][:2]
+
+
+def test_sweep_tracker_counts_a_cell_once_per_pass():
+    from planner.sweep import SweepTracker
+    t = SweepTracker(1)
+    first = t.track(0, [(100.0, 100.0), (140.0, 100.0)])
+    again = t.track(0, [(140.0, 100.0), (140.0, 100.0)])    # hovering: still the same pass
+    assert first.any() and not again.any()
+    t.lift(0)
+    assert t.track(0, [(140.0, 100.0)]).any()               # after leaving the strip, a new pass counts
+
+
+def test_path_mode_legs_avoid_nofly_and_spread_drones():
+    scn = make_scenario(3)
+    pl = Planner(3, mode="path")
+    pl.set_prior(scn.observable())
+    nf = nofly_mask()
+    starts = [(1000.0, 0.0), (1010.0, 0.0), (990.0, 0.0)]
+    for i, s in enumerate(starts):
+        wps = pl.next_route(i, s)
+        assert not nf[pl.targets[i]]
+        pts = [s] + list(wps)
+        assert not any(z.segment_hits(p, q) for z in DEFAULT_ZONES for p, q in zip(pts[:-1], pts[1:]))
+    assert len(set(pl.targets)) == 3                       # three drones, three different legs
+
+
+def test_path_mode_flies_long_legs_on_a_flat_map():
+    """The failure mode that sank the cell-greedy planner: on a flat map it crawls in ~30 m hops."""
+    pl = Planner(1, mode="path")
+    pl.set_prior({"alert_xy": (1000.0, 1000.0), "pings": [], "dem": None, "buildings": None})
+    pl.P[:] = 1.0
+    pl.P[pl.nofly] = 0
+    pl.P /= pl.P.sum()
+    wps = pl.next_route(0, (1000.0, 1000.0))
+    assert np.hypot(*(np.asarray(wps[-1]) - (1000.0, 1000.0))) > 300

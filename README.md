@@ -29,15 +29,18 @@ flowchart TB
   F <-- MAVLink UDP 14540+N --> S1[PX4 SITL d1] & S2[PX4 SITL d2] & S3[PX4 SITL d3]
 ```
 
-Interface contracts (the four event types, coordinates, grid, ports, ownership rules) are frozen in
-[`CLAUDE.md`](CLAUDE.md).
+There is one live planner, inside the API. Fleets (the mock today, PX4 via `fleet/run.py` from Day 4)
+post telemetry, which the planner turns into negative-information map updates, and ask
+`POST /planner/next` for each drone's next leg. Interface contracts (the four event types, the live-loop
+REST calls, coordinates, grid, ports, ownership rules) are frozen in [`CLAUDE.md`](CLAUDE.md).
 
 ## Quick start
 
 ```bash
 git clone https://github.com/rahulpravash-design/traan.git && cd traan
 docker compose up            # api + mock fleet + dashboard, no PX4 needed
-# open http://localhost:5173  → click "Drop alert pin", click the map
+# open http://localhost:5173  → the mock fleet sends a scenario alert and starts searching;
+# "Drop alert pin" re-centres the search (the mock's hidden victims stay where they are)
 ```
 
 Without Docker:
@@ -46,7 +49,7 @@ Without Docker:
 pip install -r requirements.txt
 ./data/fetch.sh                                   # SRTM tile + OSM extract (optional; synthetic terrain otherwise)
 uvicorn api.main:app --port 8000 &
-python -m fleet.mock_feed --seed 1 --speedup 5 &
+python -m fleet.mock_feed --seed 1 --speedup 5 &   # add --wait-for-pin to start from your own pin
 cd dashboard && npm install && npm run dev
 ```
 
@@ -56,6 +59,7 @@ With PX4 SITL (headless SIH, 3 drones):
 docker compose --profile px4 up px4-sitl          # or: PX4_DIR=~/PX4-Autopilot ./fleet/px4_sitl.sh 3
 pip install -r fleet/requirements.txt
 python -m fleet.smoke_test --drones 3             # Day 1 check: arm, take off, land
+python -m fleet.run --drones 3                    # live loop: fly the API planner's legs (Day 4 check)
 ```
 
 Tests: `pytest` (21 tests: grid geometry, Bayes update, prior, allocation, no-fly routing, fast sim, API).
@@ -65,10 +69,10 @@ Tests: `pytest` (21 tests: grid geometry, Bayes update, prior, allocation, no-fl
 | # | Module | Weight | In the 50% build | Credit | Today |
 |---|---|---|---|---|---|
 | 1 | Scenario and world: Nilgiris DEM, OSM layers, synthetic victims | 5 | ✅ Full | 5 | Grid + SRTM loader + scenario generator done; OSM layers not yet used |
-| 2 | Fleet control: 3× PX4 SITL, MAVSDK missions and telemetry | 15 | ✅ Full | 15 | Adapter, launch script, smoke test written; **not yet run against PX4** |
-| 3 | Planner: Bayesian map, updates, allocation, fixed no-fly zones | 20 | ◐ No live re-planning, no LOS-only mode | 15 | Prior, Bayes update, greedy allocation, no-fly routing done in fast sim |
+| 2 | Fleet control: 3× PX4 SITL, MAVSDK missions and telemetry | 15 | ✅ Full | 15 | Adapter, launch script, smoke test, live loop (`fleet/run.py`) written; **not yet run against PX4** |
+| 3 | Planner: Bayesian map, updates, allocation, fixed no-fly zones | 20 | ◐ No live re-planning, no LOS-only mode | 15 | Prior, Bayes update, leg-scoring allocation, no-fly routing; drives the mock fleet live through the API |
 | 4 | Thermal perception: YOLO on HIT-UAV, frame replay in the loop | 15 | ◐ No multi-frame check, no Jetson/TensorRT | 5 | Training/eval scripts, replay, service written; **no model trained yet** |
-| 5 | Commander dashboard | 10 | ◐ Map, live drones, heatmap, confirm queue | 5 | All four working on the mock feed |
+| 5 | Commander dashboard | 10 | ◐ Map, live drones, heatmap, confirm queue | 5 | All four working on the mock fleet, incl. alert pin → search → confirm |
 | 6 | Benchmark harness and results | 10 | ◐ 100 runs + wrong-prior test, no CIs | 5 | Runner + chart done; first fast-sim run below |
 | 7 | Comms-loss resilience: store-and-forward, relay drone | 10 | ❌ | 0 | — |
 | 8 | Ground robot + kit drop | 5 | ❌ | 0 | — |

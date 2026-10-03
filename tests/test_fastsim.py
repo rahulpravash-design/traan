@@ -22,3 +22,23 @@ def test_both_methods_produce_results():
         r = run(scn, m, t_max=1200)
         assert r.n_victims >= 3 and 0 <= r.found_20min <= r.found_total <= r.n_victims
         assert math.isnan(r.ttff_s) or 0 < r.ttff_s <= 1200
+
+
+def test_victims_in_nofly_are_unscored_not_missed():
+    from planner.nofly import nofly_mask
+    from sim.scenario import victim_cells
+    nf = nofly_mask()
+    for seed in range(40):
+        scn = make_scenario(seed)
+        n_in = sum(nf[rc] for rc in victim_cells(scn))
+        if n_in:
+            r = run(scn, "grid", t_max=60)
+            assert r.n_unreachable == n_in and r.n_victims == len(scn.victims_xy) - n_in
+            return
+    raise AssertionError("expected at least one scenario with a victim in the no-fly zone")
+
+
+def test_all_three_methods_run():
+    scn = make_scenario(4)
+    for m in ("bayes", "bayes_cell", "grid"):
+        assert run(scn, m, t_max=300).method == m

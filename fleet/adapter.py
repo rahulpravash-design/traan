@@ -14,8 +14,9 @@ import time
 
 import httpx
 
+from planner.sweep import SEARCH_ALT_M
+
 API = os.environ.get("TRAAN_API", "http://localhost:8000")
-SEARCH_ALT_M = 60.0
 ARRIVE_M = 5.0
 
 

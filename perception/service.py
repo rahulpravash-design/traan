@@ -26,7 +26,7 @@ CONF_MIN = float(os.environ.get("TRAAN_CONF_MIN", "0.5"))
 
 app = FastAPI(title="TRAAN perception", version="0.1.0")
 _state = {}
-_ids = itertools.count(int(time.time()) % 100000 * 10)
+_ids = itertools.count(int(time.time() * 1000) % 2_000_000_000)  # unique across restarts
 
 
 def _replay():

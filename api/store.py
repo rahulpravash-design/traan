@@ -34,6 +34,19 @@ class EventStore:
         with self._lock:
             return [{"seq": s, **json.loads(b)} for s, b in self._db.execute(sql, args)]
 
+    def snapshot(self):
+        """What a freshly connected dashboard needs, oldest first: the latest map, the last
+        telemetry per drone, and the latest state of every detection (plus its confirm)."""
+        sql = """
+            SELECT seq, body FROM events WHERE seq IN (
+                SELECT MAX(seq) FROM events WHERE type = 'map_update'
+                UNION SELECT MAX(seq) FROM events WHERE type = 'telemetry' GROUP BY json_extract(body, '$.drone')
+                UNION SELECT MAX(seq) FROM events WHERE type IN ('detection', 'confirm')
+                      GROUP BY type, json_extract(body, '$.id')
+            ) ORDER BY seq"""
+        with self._lock:
+            return [json.loads(b) for _, b in self._db.execute(sql)]
+
     def latest_detection(self, det_id: int):
         with self._lock:
             row = self._db.execute(

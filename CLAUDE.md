@@ -25,7 +25,21 @@ Defined in `api/schemas.py` (pydantic, `extra="forbid"`). Every module emits and
 | `map_update.top_cells` | `[row, col, p]`, sorted by `p` descending, at most 500 entries; `version` only increases |
 
 Transport: producers `POST /events` to the API; consumers subscribe to `ws://<api>:8000/ws`
-(a new socket first receives a snapshot: latest map, last telemetry per drone, every detection).
+(a new socket first receives a snapshot: latest map, last telemetry per drone, the latest state of
+every detection, and only then live events, in order).
+
+## 1b. Live-loop REST (not events)
+
+| Call | Who | What |
+|---|---|---|
+| `POST /commands/alert {lat, lon, pings?: [{lat, lon, acc_m}], by}` | dashboard / reporter | New search area: planner builds the prior, a `map_update` goes out |
+| `POST /commands/confirm {id, by}` · `POST /commands/reject {id, by}` | dashboard | Operator decision on a pending detection |
+| `POST /planner/next {drone, lat, lon}` → `{waypoints: [[lat, lon], ...], target, version}` | fleet (mock or PX4) | Next leg for that drone; `409` until an alert exists |
+| `GET /world` | dashboard | Grid corners, home, no-fly zones (GeoJSON) |
+
+There is exactly **one live `Planner`, inside the API process**. Telemetry at or above 48 m (0.8 × search
+altitude) counts as searching: the swept strip since that drone's last report is a pass, and a
+`map_update` follows at most once per second. Fleets never run their own planner.
 
 ## 2. Coordinates
 
@@ -65,7 +79,9 @@ Transport: producers `POST /events` to the API; consumers subscribe to `ws://<ap
   than the planner's prior (`planner/prior.py`). The planner only sees `Scenario.observable()`.
 - Phone pings: 50–300 m error, 30% missing. Same seeds for both methods; 100 runs each;
   plus a wrong-prior set shifted 400 m.
-- Fast sim: 8 m/s, 60 m altitude, 50 m sensor strip, true POD 0.8 per pass.
+- Fast sim: 8 m/s, 60 m altitude, 50 m sensor strip, true POD 0.8 per pass. Each victim has a pre-drawn
+  sequence of detection coin flips shared by every method (common random numbers).
+- Victims inside a no-fly zone are unreachable for every method: report them (`n_unreachable`), don't score them.
 - Report median time-to-first-find with IQR and % of victims found within 20 min. Publish the CSV.
   If Bayes does not win, say so.
 
@@ -82,6 +98,7 @@ Transport: producers `POST /events` to the API; consumers subscribe to `ws://<ap
 pip install -r requirements.txt && pytest          # all Python tests
 python -m bench.run --runs 100 && python -m bench.plot bench/results/fastsim_100.csv
 uvicorn api.main:app --port 8000                   # API
-python -m fleet.mock_feed --seed 1 --speedup 5     # fake fleet (no PX4)
+python -m fleet.mock_feed --seed 1 --speedup 5     # fake fleet flying the API planner (no PX4)
+python -m fleet.run --drones 3                     # same loop on PX4 SITL
 cd dashboard && npm install && npm run dev          # dashboard
 ```
