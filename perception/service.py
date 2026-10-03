@@ -9,8 +9,10 @@ this service never sees victim positions.
 from __future__ import annotations
 
 import itertools
+import json
 import os
 import time
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -22,7 +24,16 @@ from perception.detector import load_detector
 from perception.replay import FrameReplay
 
 API = os.environ.get("TRAAN_API", "http://localhost:8000")
-CONF_MIN = float(os.environ.get("TRAAN_CONF_MIN", "0.5"))
+def _default_conf_min():
+    """The threshold perception/operating_point.py picked from the test split (frame recall = the
+    benchmark's POD), unless TRAAN_CONF_MIN overrides it."""
+    try:
+        return float(json.loads(Path("perception/metrics.json").read_text())["operating_point"]["conf_min"])
+    except (OSError, KeyError, ValueError):
+        return 0.6
+
+
+CONF_MIN = float(os.environ.get("TRAAN_CONF_MIN", _default_conf_min()))
 
 app = FastAPI(title="TRAAN perception", version="0.1.0")
 _state = {}
@@ -49,7 +60,7 @@ class Observation(BaseModel):
 def health():
     try:
         _, det = _replay()
-        return {"ok": True, "detector": det.name}
+        return {"ok": True, "detector": det.name, "conf_min": CONF_MIN}
     except FileNotFoundError:
         return {"ok": False, "error": "replay index missing — run perception.prepare_hituav"}
 

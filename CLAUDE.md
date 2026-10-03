@@ -105,5 +105,7 @@ python -m fleet.mock_feed --seed 1 --speedup 5     # fake fleet flying the API p
 python -m fleet.run --drones 3                     # same loop on PX4 SITL
 python -m sim.replay_mapper --seed 1               # real detection path (with perception/ running)
 python -m bench.px4_check --seeds 1 2 3 --speed 4  # PX4 vs fast-sim cross-check
+./data/fetch.sh hituav && python -m perception.train  # HIT-UAV + YOLO -> perception/metrics.json
+python -m perception.operating_point               # detector threshold: frame recall = benchmark POD
 cd dashboard && npm install && npm run dev          # dashboard
 ```

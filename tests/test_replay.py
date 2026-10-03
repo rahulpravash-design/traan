@@ -73,7 +73,8 @@ def test_perception_service_turns_person_frames_into_detections(fake_hituav, mon
     posted = []
     monkeypatch.setattr(svc.httpx, "post", lambda url, json, timeout: posted.append(json))
     c = TestClient(svc.app)
-    assert c.get("/health").json() == {"ok": True, "detector": "label-oracle"}
+    h = c.get("/health").json()
+    assert h["ok"] and h["detector"] == "label-oracle" and 0 < h["conf_min"] < 1
 
     body = {"drone": "d2", "lat": 11.41, "lon": 76.70, "step": 1, "victim_in_view": True}
     r = c.post("/observe", json=body).json()

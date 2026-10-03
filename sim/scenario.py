@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from sim.osm import load_buildings
 from sim.terrain import downhill_step, load_dem
 from sim.world import CELL_M, N_CELLS, SIZE_M, cell_to_xy, xy_to_cell
 
@@ -62,7 +63,10 @@ def _runout(rng, dem):
 def make_scenario(seed: int, n_victims: tuple = (3, 7)) -> Scenario:
     rng = np.random.default_rng(seed)
     dem = load_dem(seed)
-    buildings = _buildings(rng)
+    buildings = _buildings(rng)          # always drawn, so the rest of the scenario doesn't depend on OSM
+    osm = load_buildings()
+    if osm is not None and osm.any():
+        buildings = osm                  # real footprints from data/osm.json
     runout = _runout(rng, dem)
     run_xy = np.array([cell_to_xy(r, c) for r, c in runout], dtype=float)
 

@@ -24,10 +24,11 @@ import numpy as np
 
 from sim.fastsim import METHODS, T_MAX_S, run
 from sim.scenario import make_scenario
+from sim.osm import buildings_source
 from sim.terrain import DEM_PATH
 
 WRONG_PRIOR_M = 400.0
-TERRAIN = "srtm" if DEM_PATH.exists() else "synthetic"  # results differ by terrain; the CSV says which
+TERRAIN = ("srtm" if DEM_PATH.exists() else "synthetic") + "+" + buildings_source()  # the CSV says which data
 RESULTS = Path(__file__).resolve().parent / "results"
 FIELDS = ["seed", "method", "prior", "terrain", "n_victims", "n_unreachable", "ttff_s", "found_20min",
           "found_total", "frac_20min"]

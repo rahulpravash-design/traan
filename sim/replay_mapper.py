@@ -49,7 +49,7 @@ class Observation:
 class ReplayMapper:
     """Pure logic, no I/O: telemetry events in, observations out. Easy to test."""
 
-    def __init__(self, scn, n_drones=3, empty_every_s=4.0):
+    def __init__(self, scn, n_drones=3, empty_every_s=10.0):
         self.scn = scn
         self.victims, self.n_unreachable = reachable_victims(scn)
         self.n = n_drones
@@ -135,6 +135,7 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--drones", type=int, default=3)
     ap.add_argument("--wait-for-pin", action="store_true")
-    ap.add_argument("--empty-every", type=float, default=4.0, help="seconds between person-free frames per drone")
+    ap.add_argument("--empty-every", type=float, default=10.0,
+                    help="seconds between person-free frames per drone (each is a 1.8%% false-alarm chance at conf 0.6)")
     a = ap.parse_args()
     asyncio.run(run(a.seed, a.drones, a.wait_for_pin, a.empty_every))
