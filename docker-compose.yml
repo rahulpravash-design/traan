@@ -1,6 +1,7 @@
-# Default:        docker compose up                  -> api, mock-fleet, dashboard (no PX4 needed)
-# With PX4 SITL:  docker compose --profile px4 up    -> also 3 headless PX4 drones (stop mock-fleet first)
-# With detector:  docker compose --profile perception up
+# Default:        docker compose up                  -> api, mock-fleet (fake detections), dashboard
+# Real detection pipeline (replay mapper -> perception -> detection), needs data/hituav_person:
+#   MOCK_FLEET_ARGS="--fleet-only --speedup 5" docker compose --profile perception up
+# With PX4 SITL:  docker compose --profile px4 up    -> 3 headless PX4 drones (stop mock-fleet first)
 services:
   api:
     build: { context: ., dockerfile: docker/python.Dockerfile }
@@ -17,7 +18,7 @@ services:
 
   mock-fleet:
     build: { context: ., dockerfile: docker/python.Dockerfile }
-    command: python -m fleet.mock_feed --seed 1 --speedup 5
+    command: python -m fleet.mock_feed ${MOCK_FLEET_ARGS:---seed 1 --speedup 5}
     environment:
       TRAAN_API: http://api:8000
     depends_on:
@@ -41,6 +42,17 @@ services:
       - ./data:/app/data:ro
       - ./perception/weights:/app/perception/weights:ro
     ports: ["8001:8001"]
+
+  replay-mapper:
+    profiles: [perception]
+    build: { context: ., dockerfile: docker/python.Dockerfile }
+    command: python -m sim.replay_mapper --seed 1
+    environment:
+      TRAAN_API: http://api:8000
+      TRAAN_PERCEPTION: http://perception:8001
+    depends_on:
+      api: { condition: service_healthy }
+      perception: { condition: service_started }
 
   px4-sitl:
     profiles: [px4]

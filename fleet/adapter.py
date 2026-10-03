@@ -15,6 +15,7 @@ import time
 import httpx
 
 from planner.sweep import SEARCH_ALT_M
+from sim.fastsim import SPEED_MPS as CRUISE_MPS
 
 API = os.environ.get("TRAAN_API", "http://localhost:8000")
 ARRIVE_M = 5.0
@@ -60,6 +61,11 @@ class DroneAdapter:
             self.battery = max(0.0, min(1.0, pct / 100.0 if pct > 1.0 else pct))  # MAVSDK v1 vs v2 units
 
     async def takeoff(self, alt_m=SEARCH_ALT_M):
+        # goto_location flies at MPC_XY_CRUISE; match the planner's / benchmark's 8 m/s
+        try:
+            await self.system.param.set_param_float("MPC_XY_CRUISE", CRUISE_MPS)
+        except Exception as e:  # older firmware / param missing: fly at its default, but say so
+            print(f"[{self.name}] could not set MPC_XY_CRUISE: {e}")
         await self.system.action.set_takeoff_altitude(alt_m)
         await self.system.action.arm()
         await self.system.action.takeoff()

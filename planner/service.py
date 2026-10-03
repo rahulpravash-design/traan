@@ -10,13 +10,16 @@ import time
 import numpy as np
 
 from planner.allocate import assign, assign_leg
+from planner.baseline import lawnmower
 from planner.bayes import bayes_update, on_confirmed_find, pod_from_sweep, top_cells
 from planner.nofly import DEFAULT_ZONES, nofly_mask, route
 from planner.prior import prior_from_scenario
 from planner.sweep import SENSOR_STRIP_M, SweepTracker, swept_cells  # noqa: F401  (re-exported)
-from sim.world import CELL_M, cell_to_xy
+from sim.world import CELL_M, HOME_XY, cell_to_xy, xy_to_cell
 
-MODES = ("path", "cell")
+# "path": leg scoring (default) · "cell": the original cell-greedy · "grid": lawnmower baseline that
+# ignores the map (so the PX4 cross-check can fly the baseline through the same live loop)
+MODES = ("path", "cell", "grid")
 
 
 class Planner:
@@ -36,6 +39,7 @@ class Planner:
         self.targets = [None] * self.n
         self.paths = [None] * self.n
         self.tracker = SweepTracker(self.n)
+        self._grid_first = [True] * self.n
 
     @property
     def ready(self):
@@ -59,7 +63,7 @@ class Planner:
         """Live loop: drone i reports its position. Sweeps since the last report count as a pass.
         `searching=False` (on the ground, climbing) moves the drone without updating the map."""
         if not searching:
-            self.tracker.lift(i, xy)
+            self.tracker.lift(i)
             return None
         newly = self.tracker.move_to(i, xy)
         if self.ready:
@@ -74,6 +78,12 @@ class Planner:
     def next_route(self, i, drone_xy):
         """Pick drone i's next leg and return its waypoints (local metres, routed around no-fly zones)."""
         drone_xy = np.asarray(drone_xy, float)
+        if self.mode == "grid":   # same plan as the fast sim: strips from home, then another full pass
+            start = HOME_XY if self._grid_first[i] else drone_xy
+            self._grid_first[i] = False
+            wps = lawnmower(self.n, start_xy=start, zones=self.zones)[i]
+            self.targets[i] = tuple(int(v) for v in xy_to_cell(*wps[-1]))
+            return wps
         if self.mode == "cell":
             others = [t for j, t in enumerate(self.targets) if j != i]
             blocked = self.nofly | swept_cells(drone_xy, drone_xy)

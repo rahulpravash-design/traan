@@ -5,12 +5,15 @@
 TRAAN decides where a search fleet should look next, coordinates several autonomous drones,
 updates its probability map from what they did and didn't find, and leaves the final call to a human operator.
 
-> Status: **Day 1 scaffold** for the Smart India Hackathon build (target `v0.5` on 14 Oct). Everything
-> runs in simulation: PX4 SITL drones, HIT-UAV thermal frame replay. No real aircraft, no live camera.
+> Status: **≈46% of the prototype** (see the table below), ahead of the 14-day plan that starts 4 Oct.
+> The Find loop runs on 3 PX4 SITL drones. Everything is simulation: PX4 SITL, thermal *frame replay*.
+> No real aircraft, no live camera, and **no trained detector yet** (HIT-UAV + YOLO is the next step).
 
-![Commander dashboard on the mock feed](docs/img/dashboard-mock-feed.png)
-<sub>Commander dashboard driven by the mock fleet (basemap tiles not loaded in this capture). Orange = probability
-heatmap, red box = no-fly zone, blue = drones, amber/green = pending/confirmed detections.</sub>
+![Commander dashboard during a PX4 SITL run](docs/img/dashboard-px4.png)
+<sub>Commander dashboard during a run with 3 PX4 SITL drones (blue) after the operator confirmed a detection (green).
+Orange = probability heatmap; the searched middle has cleared. Red box = no-fly zone. The thermal frame in the card is
+a **placeholder used to test the wiring**, not a HIT-UAV frame, and the detector was the label oracle. Basemap tiles
+were not loaded in this capture.</sub>
 
 ## The Find loop
 
@@ -62,24 +65,37 @@ python -m fleet.smoke_test --drones 3             # Day 1 check: arm, take off, 
 python -m fleet.run --drones 3                    # live loop: fly the API planner's legs (Day 4 check)
 ```
 
-Tests: `pytest` (29 tests: grid geometry, Bayes update, prior, allocation, sweep tracking, no-fly routing, fast sim, API and live loop).
+Verified on PX4 v1.15.4 SITL (SIH, headless, Ubuntu 24.04): the smoke test passes and 3 drones fly the
+planner's legs from Ooty. Shallow clones need `git -C platforms/nuttx/NuttX/nuttx tag nuttx-11.0.0` before
+`make`, and `mavsdk` must stay `<4` (v4 is a different API).
+
+Real detection path (replay mapper → perception → detection), with the mock fleet or PX4:
+
+```bash
+uvicorn perception.service:app --port 8001 &      # needs data/hituav_person (data/fetch.sh hituav)
+python -m fleet.mock_feed --fleet-only &          # or: python -m fleet.run --drones 3
+python -m sim.replay_mapper --seed 1              # owns the hidden victims, sends the alert + frames
+```
+
+Tests: `pytest` (33 tests: grid geometry, Bayes update, prior, allocation, sweep tracking, no-fly routing, fast sim, API, live loop, replay mapper and perception plumbing).
 
 ## What "50%" means
 
 | # | Module | Weight | In the 50% build | Credit | Today |
 |---|---|---|---|---|---|
-| 1 | Scenario and world: Nilgiris DEM, OSM layers, synthetic victims | 5 | ✅ Full | 5 | Grid + SRTM loader + scenario generator done; OSM layers not yet used |
-| 2 | Fleet control: 3× PX4 SITL, MAVSDK missions and telemetry | 15 | ✅ Full | 15 | Adapter, launch script, smoke test, live loop (`fleet/run.py`) written; **not yet run against PX4** |
-| 3 | Planner: Bayesian map, updates, allocation, fixed no-fly zones | 20 | ◐ No live re-planning, no LOS-only mode | 15 | Prior, Bayes update, leg-scoring allocation, no-fly routing; drives the mock fleet live through the API |
-| 4 | Thermal perception: YOLO on HIT-UAV, frame replay in the loop | 15 | ◐ No multi-frame check, no Jetson/TensorRT | 5 | Training/eval scripts, replay, service written; **no model trained yet** |
-| 5 | Commander dashboard | 10 | ◐ Map, live drones, heatmap, confirm queue | 5 | All four working on the mock fleet, incl. alert pin → search → confirm |
-| 6 | Benchmark harness and results | 10 | ◐ 100 runs + wrong-prior test, no CIs | 5 | Runner, chart, ablation done; fast-sim results below |
+| 1 | Scenario and world: Nilgiris DEM, OSM layers, synthetic victims | 5 | ✅ Full | 5 | **4** · grid, SRTM terrain, scenario generator; OSM buildings not yet used |
+| 2 | Fleet control: 3× PX4 SITL, MAVSDK missions and telemetry | 15 | ✅ Full | 15 | **15** · verified on PX4 SITL: smoke test, 3 drones flying planner legs, 2 Hz telemetry |
+| 3 | Planner: Bayesian map, updates, allocation, fixed no-fly zones | 20 | ◐ No live re-planning, no LOS-only mode | 15 | **15** · prior, Bayes update, leg-scoring allocation, no-fly routing; drives PX4 live through the API |
+| 4 | Thermal perception: YOLO on HIT-UAV, frame replay in the loop | 15 | ◐ No multi-frame check, no Jetson/TensorRT | 5 | **2** · replay mapper → perception → detection verified on PX4, but only with placeholder frames + label oracle; **no YOLO trained, no HIT-UAV yet** |
+| 5 | Commander dashboard | 10 | ◐ Map, live drones, heatmap, confirm queue | 5 | **5** · all four working on PX4 and the mock fleet, incl. the detection's frame |
+| 6 | Benchmark harness and results | 10 | ◐ 100 runs + wrong-prior test, no CIs | 5 | **5** · 100 runs + wrong prior + ablation; PX4 cross-check script, first runs below |
 | 7 | Comms-loss resilience: store-and-forward, relay drone | 10 | ❌ | 0 | — |
 | 8 | Ground robot + kit drop | 5 | ❌ | 0 | — |
-| 9 | Security: signed commands, JWT roles, audit log, sitreps | 10 | ❌ | 0 | Single command choke point in place (`api/commands.py`) |
-| | **Total** | **100** | | **50** | |
+| 9 | Security: signed commands, JWT roles, audit log, sitreps | 10 | ❌ | 0 | 0 · single command choke point in place (`api/commands.py`) |
+| | **Total** | **100** | | **50** | **≈46** |
 
-Modules 7–9 and the half-finished parts are the 36-hour finale (sprints S3–S4).
+Modules 7–9 and the half-finished parts are the 36-hour finale (sprints S3–S4). **To reach 50%:** train YOLO on
+HIT-UAV and run the loop with it (module 4 → 5), and use OSM buildings in scenarios (module 1 → 5).
 
 ## Benchmark (fast 2D sim, preliminary)
 
@@ -91,9 +107,9 @@ and are reported, not scored; one scenario had no reachable victim and is exclud
 
 | Prior | Method | Median time to first find | IQR | Reachable victims found ≤ 20 min | Runs with no find in 60 min |
 |---|---|---|---|---|---|
-| As built | **Bayesian** | 164 s | 132–200 s | 94.2% | 0 / 99 |
+| As built | **Bayesian** | 164 s | 132–200 s | 93.7% | 0 / 99 |
 | As built | Grid sweep | 1232 s | 830–1446 s | 22.8% | 1 / 99 |
-| Shifted 400 m | **Bayesian** | 424 s | 234–674 s | 66.6% | **5 / 99** |
+| Shifted 400 m | **Bayesian** | 412 s | 242–674 s | 68.1% | **4 / 99** |
 | Shifted 400 m | Grid sweep | 1232 s | 830–1446 s | 22.8% | 1 / 99 |
 | As built | Bayesian, cell-greedy (old) | 168 s | 140–200 s | 86.1% | 0 / 99 |
 | Shifted 400 m | Bayesian, cell-greedy (old) | 652 s | 344–1108 s | 45.8% | 12 / 99 |
@@ -102,13 +118,16 @@ and are reported, not scored; one scenario had no reachable victim and is exclud
 
 **Read this carefully.**
 - Both the victim model and the prior are ours, so the "as built" gap is an upper bound, not a field result.
-- With a 400 m wrong prior, Bayesian search is faster than the grid sweep in 79 of 99 paired scenarios,
-  but **5 runs find nobody in an hour versus 1 for the grid sweep**. In those runs the planner, trusting
+- With a 400 m wrong prior, Bayesian search is faster than the grid sweep in 77 of 99 paired scenarios,
+  but **4 runs find nobody in an hour versus 1 for the grid sweep**. In those runs the planner, trusting
   its prior, re-searches the wrong area and covers only about two thirds of the grid in 60 min.
 - The first planner (pick the best cell by P / distance) had 12 such runs: it crawled in ~30 m overlapping
   hops and covered only 36–44% of the area in an hour. Scoring whole legs by probability swept per metre
   (`planner/allocate.py::assign_leg`) fixed most of that; the old planner stays in the table as an ablation.
-- Not yet cross-checked in PX4 SITL (Day 10).
+- **PX4 cross-check** (`python -m bench.px4_check --seeds 1 2 3 --speed 4`): the same scenarios flown by
+  3 PX4 SITL drones, scored with the fast sim's sweep model and detection luck. First result, seed 1:
+  Bayesian first find at **181 s on PX4 vs 168 s in the fast sim**, all 4 victims within 20 min in both.
+  The full 3-seed Bayes-vs-grid table lands in `bench/results/px4_check.csv` when the run finishes.
 
 ## Repository layout
 

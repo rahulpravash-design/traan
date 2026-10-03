@@ -92,7 +92,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
     store = EventStore(db_path or os.environ.get("TRAAN_DB", "traan.sqlite"))
     bus = Bus()
-    planner = Planner(n_drones=int(os.environ.get("TRAAN_DRONES", "3")))
+    planner = Planner(n_drones=int(os.environ.get("TRAAN_DRONES", "3")),
+                      mode=os.environ.get("TRAAN_PLANNER_MODE", "path"))   # "grid" only for the PX4 cross-check
     dem = load_dem()
     last_map = {"t": 0.0, "version": -1}
     app.state.store, app.state.bus, app.state.planner = store, bus, planner

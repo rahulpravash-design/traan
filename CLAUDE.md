@@ -62,6 +62,9 @@ altitude) counts as searching: the swept strip since that drone's last report is
   adds JWT roles + signatures there. Never add a command endpoint that skips it.
 - Drones are commanded only by `fleet/` (MAVSDK). The planner returns waypoints; it never calls MAVSDK.
 - The detector is used only through `perception/detector.py::Detector` (keeps AGPL Ultralytics swappable).
+- **Victim ground truth lives only in `sim/`** (`scenario.py`, `fastsim.py`, `replay_mapper.py`, and the scorer in
+  `bench/`). The planner, API, fleet, perception and dashboard never read `Scenario.victims_xy`.
+  Live detections come from `sim/replay_mapper.py` → `POST perception:8001/observe` → detector → `detection` event.
 
 ## 5. Ports
 
@@ -100,5 +103,7 @@ python -m bench.run --runs 100 && python -m bench.plot bench/results/fastsim_100
 uvicorn api.main:app --port 8000                   # API
 python -m fleet.mock_feed --seed 1 --speedup 5     # fake fleet flying the API planner (no PX4)
 python -m fleet.run --drones 3                     # same loop on PX4 SITL
+python -m sim.replay_mapper --seed 1               # real detection path (with perception/ running)
+python -m bench.px4_check --seeds 1 2 3 --speed 4  # PX4 vs fast-sim cross-check
 cd dashboard && npm install && npm run dev          # dashboard
 ```

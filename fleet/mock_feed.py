@@ -7,6 +7,8 @@ scenario's hidden victims ("mock frame": not YOLO, not a camera).
 
     python -m fleet.mock_feed --seed 1 --speedup 5
     python -m fleet.mock_feed --wait-for-pin      # don't auto-alert; the operator drops the pin
+    python -m fleet.mock_feed --fleet-only        # drones only: sim.replay_mapper owns the scenario,
+                                                  # perception/ makes the detections (the real pipeline)
 """
 from __future__ import annotations
 
@@ -45,17 +47,21 @@ def _alert(client, scn):
                                          "by": "mock-reporter"}).raise_for_status()
 
 
-def fly_scenario(client, seed, speedup, hz, n_drones, auto_alert):
+def fly_scenario(client, seed, speedup, hz, n_drones, auto_alert, fleet_only=False):
     scn = make_scenario(seed)
-    if auto_alert:
+    if auto_alert and not fleet_only:
         _alert(client, scn)
     else:
-        print("waiting for the operator to drop an alert pin ...")
+        print("waiting for an alert (operator pin or sim.replay_mapper) ...")
         while not _wait_for_api(client)["planner"]["ready"]:
             time.sleep(1)
-    victims, n_unreach = reachable_victims(scn)
-    print(f"scenario seed={seed}: {len(victims)} reachable hidden victims ({n_unreach} in no-fly), "
-          f"{len(scn.pings)} pings")
+    if fleet_only:
+        victims = []                                   # the replay mapper owns the victims
+        print("fleet-only: flying the API planner's legs; detections come from perception/")
+    else:
+        victims, n_unreach = reachable_victims(scn)
+        print(f"scenario seed={seed}: {len(victims)} reachable hidden victims ({n_unreach} in no-fly), "
+              f"{len(scn.pings)} pings")
 
     luck = np.random.default_rng([seed, 7]).random((len(scn.victims_xy), 4096))
     passes = np.zeros(len(scn.victims_xy), int)
@@ -67,7 +73,7 @@ def fly_scenario(client, seed, speedup, hz, n_drones, auto_alert):
     found, det_id, t_sim = set(), int(time.time() * 1000) % 2_000_000_000, 0.0
     dt = speedup / hz
 
-    while t_sim < 3600 and len(found) < len(victims):
+    while t_sim < 3600 and (fleet_only or len(found) < len(victims)):
         t_sim += dt
         for i in range(n_drones):
             name = f"d{i + 1}"
@@ -104,11 +110,11 @@ def fly_scenario(client, seed, speedup, hz, n_drones, auto_alert):
     print(f"scenario seed={seed} done at t={t_sim:.0f} s sim: {len(found)}/{len(victims)} detected")
 
 
-def main(seed, speedup, hz=2.0, n_drones=3, loop=True, auto_alert=True):
+def main(seed, speedup, hz=2.0, n_drones=3, loop=True, auto_alert=True, fleet_only=False):
     client = httpx.Client(base_url=API, timeout=5.0)
     _wait_for_api(client)
     while True:
-        fly_scenario(client, seed, speedup, hz, n_drones, auto_alert)
+        fly_scenario(client, seed, speedup, hz, n_drones, auto_alert, fleet_only)
         if not loop:
             return
         seed += 1
@@ -120,5 +126,6 @@ if __name__ == "__main__":
     ap.add_argument("--speedup", type=float, default=5.0)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--wait-for-pin", action="store_true")
+    ap.add_argument("--fleet-only", action="store_true", help="no alert, no fake detections (use with sim.replay_mapper)")
     a = ap.parse_args()
-    main(a.seed, a.speedup, loop=not a.once, auto_alert=not a.wait_for_pin)
+    main(a.seed, a.speedup, loop=not a.once, auto_alert=not a.wait_for_pin, fleet_only=a.fleet_only)

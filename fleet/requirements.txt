@@ -1,2 +1,2 @@
 -r ../requirements.txt
-mavsdk>=2.0
+mavsdk>=2.0,<4   # v4 is a new native binding with a different API; adapter targets the gRPC API
