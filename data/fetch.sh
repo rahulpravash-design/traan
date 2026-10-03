@@ -21,7 +21,16 @@ if [ ! -f osm.json ]; then
   curl -fL --retry 3 -o osm.json.tmp https://overpass-api.de/api/interpreter --data-urlencode \
     "data=[out:json][timeout:60];(way[building]($BBOX);way[highway]($BBOX);way[waterway]($BBOX););out geom;" \
     && mv osm.json.tmp osm.json \
-    || { rm -f osm.json.tmp; echo "OSM: Overpass unreachable; scenarios keep synthetic buildings"; }
+    || { rm -f osm.json.tmp; echo "OSM: Overpass unreachable"; }
+fi
+# 2b. No OSM? Google Open Buildings v3 (CC BY 4.0 / ODbL): stream the S2 cell covering Ooty (~4.8 GB,
+#     not stored) and keep only the grid's bounding box. sim/osm.py prefers osm.json when both exist.
+if [ ! -f osm.json ] && [ ! -f open_buildings_ooty.csv ]; then
+  echo "Buildings: streaming Google Open Buildings for the grid (a few minutes)"
+  curl -fsSL --retry 3 https://storage.googleapis.com/open-buildings-data/v3/polygons_s2_level_4_gzip/3bb_buildings.csv.gz \
+    | zcat | awk -F, 'NR==1 || ($1>=11.395 && $1<=11.425 && $2>=76.685 && $2<=76.715)' > open_buildings_ooty.csv.tmp \
+    && mv open_buildings_ooty.csv.tmp open_buildings_ooty.csv \
+    || { rm -f open_buildings_ooty.csv.tmp; echo "Buildings: no source reachable; scenarios use synthetic hamlets"; }
 fi
 
 # 3. HIT-UAV thermal dataset (Suo et al., Scientific Data 2023; CC BY 4.0, cite the paper).
