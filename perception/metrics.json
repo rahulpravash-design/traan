@@ -1,0 +1,19 @@
+{
+  "dataset": "HIT-UAV person class (Suo et al. 2023, CC BY 4.0)",
+  "split": "test (579 images)",
+  "imgsz": 640,
+  "mAP50": 0.9003,
+  "mAP50_95": 0.4633,
+  "precision": 0.8726,
+  "recall": 0.8483,
+  "weights": "perception/weights/best.pt",
+  "training": {
+    "base": "yolov8n.pt",
+    "epochs": 15,
+    "imgsz": 640,
+    "batch": 16,
+    "device": "cpu (3 threads)",
+    "train_images": 2029,
+    "wall_time_min": 89.1
+  }
+}
