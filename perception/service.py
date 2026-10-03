@@ -31,7 +31,8 @@ _ids = itertools.count(int(time.time() * 1000) % 2_000_000_000)  # unique across
 
 def _replay():
     if "replay" not in _state:
-        _state["replay"] = FrameReplay(seed=int(os.environ.get("TRAAN_SEED", "0")))
+        _state["replay"] = FrameReplay(root=os.environ.get("TRAAN_REPLAY_ROOT", "data/hituav_person"),
+                                       seed=int(os.environ.get("TRAAN_SEED", "0")))
         _state["detector"] = load_detector()
     return _state["replay"], _state["detector"]
 

@@ -20,6 +20,10 @@ from sim.world import N_CELLS, cell_to_xy
 CLAIM_RADIUS_M = 75.0  # mode "cell": cells this close to another drone's target are taken
 N_NEAR, N_RICH = 48, 24  # mode "path": candidate endpoints (best P/distance, best P)
 _STANDOFF_M = 25.0       # keeps the score finite and stops very short hops from winning
+# Endpoints closer than this are skipped (if anything else is left). PX4 decelerates to a stop at every
+# waypoint, and in SITL the planner otherwise chose many 25 m hops; in the fast sim 0 / 75 / 150 m are
+# within noise of each other (40-seed check), so the real-flight cost decides.
+MIN_LEG_M = 150.0
 
 
 def next_cell(P, drone_xy, cell_xy, claimed, alpha=1.0):
@@ -61,6 +65,8 @@ def assign_leg(P, drone_xy, blocked, zones, pod, other_paths=()):
     if not ok.any():
         ok = ~blocked
     d = np.linalg.norm(_CENTERS - xy, axis=-1)
+    if MIN_LEG_M > 0 and (ok & (d >= MIN_LEG_M)).any():
+        ok &= d >= MIN_LEG_M
     near = np.where(ok, Pv / (d + _STANDOFF_M), -1.0).ravel()
     rich = np.where(ok, Pv, -1.0).ravel()
     cand = np.unique(np.concatenate([np.argsort(near)[-N_NEAR:], np.argsort(rich)[-N_RICH:]]))

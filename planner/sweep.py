@@ -70,7 +70,8 @@ class SweepTracker:
         """Live telemetry: drone i is now at xy."""
         return self.track(i, [xy] if self.last[i] is None else [self.last[i], xy])
 
-    def lift(self, i, xy=None):
-        """Drone i is on the ground / climbing: its camera isn't searching. Forget the track."""
+    def lift(self, i):
+        """Drone i is on the ground / climbing: its camera isn't searching. Forget the track, so the
+        first searching fix counts only its own footprint, not a segment from where it climbed."""
         self.prev[i][:] = False
-        self.last[i] = None if xy is None else np.asarray(xy, float)
+        self.last[i] = None
