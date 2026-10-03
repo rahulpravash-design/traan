@@ -90,3 +90,36 @@ def frame(split: str, name: str):
     if not p.exists() or ".." in name:
         raise HTTPException(404)
     return FileResponse(p)
+
+
+_annotated: dict[str, bytes] = {}
+
+
+@app.get("/annotated/{split}/{name}")
+def annotated(split: str, name: str):
+    """The frame with the detector's boxes (conf >= CONF_MIN) drawn on, for the dashboard card."""
+    import io
+
+    from fastapi.responses import Response
+    from PIL import Image, ImageDraw
+
+    key = f"{split}/{name}"
+    if key not in _annotated:
+        replay, det = _replay()
+        p = replay.path(key)
+        if not p.exists() or ".." in name:
+            raise HTTPException(404)
+        img = Image.open(p).convert("RGB")
+        draw = ImageDraw.Draw(img)
+        for b in det.detect(str(p)):
+            if b.conf < CONF_MIN:
+                continue
+            x0, y0, x1, y1 = b.xyxy
+            if max(b.xyxy) <= 1.0:                       # label oracle: normalised coordinates
+                x0, x1, y0, y1 = x0 * img.width, x1 * img.width, y0 * img.height, y1 * img.height
+            draw.rectangle([x0 - 2, y0 - 2, x1 + 2, y1 + 2], outline=(255, 196, 0), width=3)
+            draw.text((x0, max(0, y0 - 14)), f"person {b.conf:.2f}", fill=(255, 196, 0))
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=88)
+        _annotated[key] = buf.getvalue()
+    return Response(_annotated[key], media_type="image/jpeg")

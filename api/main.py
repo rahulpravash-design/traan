@@ -13,7 +13,9 @@ import asyncio
 import os
 import time
 
+import numpy as np
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -25,7 +27,7 @@ from planner.service import Planner
 from planner.sweep import SEARCH_ALT_M
 from sim.osm import load_buildings
 from sim.terrain import load_dem
-from sim.world import (CELL_M, CENTER_LAT, CENTER_LON, HOME_XY, N_CELLS, corners_latlon, latlon_to_cell,
+from sim.world import (CELL_M, CENTER_LAT, CENTER_LON, HOME_XY, N_CELLS, SIZE_M, corners_latlon, latlon_to_cell,
                        latlon_to_xy, xy_to_latlon)
 
 MAP_UPDATE_MIN_S = 1.0          # throttle for telemetry-driven map updates
@@ -80,6 +82,35 @@ class Bus:
                 self.unsubscribe(ws)  # it reconnects and gets a fresh snapshot
 
 
+def _basemap_png(dem, px=800) -> bytes:
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from sim.osm import building_rings
+
+    # hillshade from the DEM upsampled first, so 25 m cells don't show as blocks
+    fine = np.asarray(Image.fromarray(dem.astype(np.float32)).resize((px, px), Image.BICUBIC), float)
+    cell = SIZE_M / px
+    gy, gx = np.gradient(fine, cell)                   # row 0 = north
+    slope = np.arctan(np.hypot(gx, gy))
+    aspect = np.arctan2(-gy, -gx)
+    az, alt = np.radians(315.0), np.radians(45.0)      # light from the north-west
+    shade = np.clip(np.sin(alt) * np.cos(slope) + np.cos(alt) * np.sin(slope) * np.cos(az - aspect), 0, 1)
+    tone = 0.62 + 0.36 * shade
+    rgb = np.stack([tone * 0.97, tone * 0.98, tone * 0.93], axis=-1)
+    img = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8))
+    draw = ImageDraw.Draw(img)
+    for lats, lons in building_rings():                # real footprints (OSM or Open Buildings)
+        x, y = latlon_to_xy(np.asarray(lats), np.asarray(lons))
+        pts = list(zip((np.asarray(x) / SIZE_M * px).tolist(), ((SIZE_M - np.asarray(y)) / SIZE_M * px).tolist()))
+        if len(pts) >= 3:
+            draw.polygon(pts, fill=(176, 168, 158), outline=(150, 142, 132))
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
 def drone_index(name: str, n: int):
     try:
         i = int(name.lstrip("d")) - 1
@@ -98,6 +129,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     dem = load_dem()
     buildings = load_buildings()    # OSM footprints if data/osm.json exists, else None
     last_map = {"t": 0.0, "version": -1}
+    basemap_cache: dict[str, bytes] = {}
     app.state.store, app.state.bus, app.state.planner = store, bus, planner
 
     # Everything that touches the planner or the bus runs on the event loop (async handlers),
@@ -126,6 +158,15 @@ def create_app(db_path: str | None = None) -> FastAPI:
         return {"center": [CENTER_LAT, CENTER_LON], "cell_m": CELL_M, "n_cells": N_CELLS,
                 "corners": corners_latlon(), "home": [float(home_lat), float(home_lon)],
                 "nofly": {"type": "FeatureCollection", "features": [z.to_geojson() for z in DEFAULT_ZONES]}}
+
+    @app.get("/world/basemap.png")
+    def basemap():
+        """Offline basemap for the dashboard: hillshade of the grid's DEM, building cells shaded.
+        Works with no internet (venue Wi-Fi), drawn under the heatmap at the grid corners."""
+        if "png" not in basemap_cache:
+            basemap_cache["png"] = _basemap_png(dem)
+        return Response(basemap_cache["png"], media_type="image/png",
+                        headers={"Cache-Control": "max-age=3600"})
 
     @app.post("/events")
     async def ingest(event: Event):

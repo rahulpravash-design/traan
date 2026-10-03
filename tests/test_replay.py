@@ -90,3 +90,18 @@ def test_replay_is_deterministic(fake_hituav):
     from perception.replay import FrameReplay
     a, b = FrameReplay(fake_hituav, seed=3), FrameReplay(fake_hituav, seed=3)
     assert [a.pick("d1", s, True) for s in range(10)] == [b.pick("d1", s, True) for s in range(10)]
+
+
+def test_annotated_frame_draws_boxes(fake_hituav, monkeypatch):
+    monkeypatch.setenv("TRAAN_REPLAY_ROOT", str(fake_hituav))
+    monkeypatch.setenv("TRAAN_DETECTOR", "label-oracle")
+    from PIL import Image
+    import perception.service as svc
+    svc._state.clear()
+    svc._annotated.clear()
+    Image.new("RGB", (640, 512), (40, 40, 40)).save(fake_hituav / "images/test/p0.jpg")
+    r = TestClient(svc.app).get("/annotated/test/p0.jpg")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    import io
+    img = Image.open(io.BytesIO(r.content)).convert("RGB")
+    assert any(px[0] > 200 and px[1] > 150 and px[2] < 80 for px in img.getdata())   # a yellow box was drawn
