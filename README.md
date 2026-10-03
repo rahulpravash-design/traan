@@ -150,7 +150,7 @@ docs/            plan, architecture, images
 |---|---|---|
 | NASA SRTM 1″ (via AWS Terrain Tiles) | Public domain | `data/fetch.sh` |
 | OpenStreetMap | ODbL | Attribute "© OpenStreetMap contributors" |
-| HIT-UAV thermal dataset | CC0 | Not committed; fetched by `data/fetch.sh hituav` |
+| HIT-UAV thermal dataset (Suo et al., *Scientific Data* 10, 227, 2023) | CC BY 4.0 | Not committed; `data/fetch.sh hituav` clones the official repo. Cite the paper |
 | PX4, MAVSDK | BSD-3-Clause | Compatible with our Apache-2.0 |
 | Ultralytics YOLOv8/11 | **AGPL-3.0** | Hackathon only; kept behind `perception/detector.py` so it can be swapped for an Apache-2.0 model before any OEM licensing |
 | `mavsdk_drone_show` | PolyForm Noncommercial | **Do not copy code from it** |

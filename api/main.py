@@ -23,6 +23,7 @@ from api.store import EventStore
 from planner.nofly import DEFAULT_ZONES
 from planner.service import Planner
 from planner.sweep import SEARCH_ALT_M
+from sim.osm import load_buildings
 from sim.terrain import load_dem
 from sim.world import (CELL_M, CENTER_LAT, CENTER_LON, HOME_XY, N_CELLS, corners_latlon, latlon_to_cell,
                        latlon_to_xy, xy_to_latlon)
@@ -95,6 +96,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     planner = Planner(n_drones=int(os.environ.get("TRAAN_DRONES", "3")),
                       mode=os.environ.get("TRAAN_PLANNER_MODE", "path"))   # "grid" only for the PX4 cross-check
     dem = load_dem()
+    buildings = load_buildings()    # OSM footprints if data/osm.json exists, else None
     last_map = {"t": 0.0, "version": -1}
     app.state.store, app.state.bus, app.state.planner = store, bus, planner
 
@@ -163,8 +165,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
         for p in cmd.pings:
             px, py = latlon_to_xy(p.lat, p.lon)
             pings.append((float(px), float(py), p.acc_m))
-        # buildings: from data/osm.json once F wires it in; until then terrain + alert + pings only
-        planner.set_prior({"alert_xy": (float(x), float(y)), "pings": pings, "dem": dem, "buildings": None})
+        planner.set_prior({"alert_xy": (float(x), float(y)), "pings": pings, "dem": dem, "buildings": buildings})
         publish_map(force=True)
         return {"version": planner.version}
 
