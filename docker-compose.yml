@@ -1,0 +1,52 @@
+# Default:        docker compose up                  -> api, mock-fleet, dashboard (no PX4 needed)
+# With PX4 SITL:  docker compose --profile px4 up    -> also 3 headless PX4 drones (stop mock-fleet first)
+# With detector:  docker compose --profile perception up
+services:
+  api:
+    build: { context: ., dockerfile: docker/python.Dockerfile }
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      TRAAN_DB: /app/runtime/traan.sqlite
+    volumes:
+      - runtime:/app/runtime
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      retries: 10
+
+  mock-fleet:
+    build: { context: ., dockerfile: docker/python.Dockerfile }
+    command: python -m fleet.mock_feed --seed 1 --speedup 5
+    environment:
+      TRAAN_API: http://api:8000
+    depends_on:
+      api: { condition: service_healthy }
+
+  dashboard:
+    build: { context: ., dockerfile: docker/dashboard.Dockerfile }
+    environment:
+      VITE_API: http://localhost:8000          # browser-side URL, so localhost, not the service name
+      VITE_PERCEPTION: http://localhost:8001
+    ports: ["5173:5173"]
+    depends_on: [api]
+
+  perception:
+    profiles: [perception]
+    build: { context: ., dockerfile: docker/python.Dockerfile, args: { EXTRA: perception } }
+    command: uvicorn perception.service:app --host 0.0.0.0 --port 8001
+    environment:
+      TRAAN_API: http://api:8000
+    volumes:
+      - ./data:/app/data:ro
+      - ./perception/weights:/app/perception/weights:ro
+    ports: ["8001:8001"]
+
+  px4-sitl:
+    profiles: [px4]
+    build: { context: ., dockerfile: docker/px4.Dockerfile }
+    # host networking so instance N's MAVLink on UDP 14540+N reaches fleet/adapter.py on the host
+    network_mode: host
+
+volumes:
+  runtime:

@@ -1,0 +1,11 @@
+.git
+**/node_modules
+dashboard/dist
+**/__pycache__
+data/*
+!data/fetch.sh
+!data/prepare_dem.py
+runs
+perception/weights
+px4_instances
+*.sqlite
