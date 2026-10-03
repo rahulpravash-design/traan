@@ -1,0 +1,3 @@
+-r ../requirements.txt
+# AGPL-3.0 — keep behind perception/detector.py
+ultralytics>=8.3

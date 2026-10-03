@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dashboard/dist/
+
+# Data (never commit datasets — use data/fetch.sh)
+data/*
+!data/fetch.sh
+!data/prepare_dem.py
+!data/README.md
+
+# Runtime
+*.sqlite
+*.db
+runs/
+perception/weights/
+*.pt
+*.onnx
+*.engine
+px4_instances/
+
+# Benchmark: commit CSVs deliberately, not scratch output
+bench/results/scratch_*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
