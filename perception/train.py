@@ -23,7 +23,9 @@ METRICS = Path("perception/metrics.json")
 def evaluate(weights: str, imgsz: int, training: dict | None = None):
     from ultralytics import YOLO
 
-    m = YOLO(weights).val(data=str(DATA), split="test", imgsz=imgsz, plots=False, verbose=False)
+    # batch=4: on CPU, Ultralytics' NMS time limit (2 s + 0.05 s x batch) is otherwise exceeded and boxes
+    # get dropped silently, which would understate mAP
+    m = YOLO(weights).val(data=str(DATA), split="test", imgsz=imgsz, batch=4, plots=False, verbose=False)
     metrics = {"dataset": "HIT-UAV person class (Suo et al. 2023, CC BY 4.0)", "split": "test (579 images)",
                "imgsz": imgsz, "mAP50": round(float(m.box.map50), 4), "mAP50_95": round(float(m.box.map), 4),
                "precision": round(float(m.box.mp), 4), "recall": round(float(m.box.mr), 4),
