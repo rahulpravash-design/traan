@@ -22,23 +22,23 @@ Stretch days if college needs it, but keep the order and the daily checks.
 | 13 | Fri 16 | Judge Q&A dry run incl. "add a no-fly zone now" | Each answer backed by something on screen |
 | 14 | Sat 17 | Freeze, repo public, fill deck placeholders | Links work; no «…» left in deck |
 
-## Where things stand (3 Oct, before Day 1)
+## Where things stand (3 Oct, before Day 1): ≈50%
 
-Verified in the cloud dev environment, so these are done before the plan starts:
-- **PX4 v1.15.4 SITL (SIH, headless)**: Day 1 smoke test passes; 3 drones fly the API planner's legs
-  (`fleet/run.py`); `fleet/px4_sitl.sh` spawns them at Ooty.
-- **Find loop on PX4**: alert → prior → 3 drones → replay mapper → perception → detection → operator
-  confirm → map update. Detector in that run: the label oracle on placeholder frames (plumbing only).
-- **Benchmark** (fast sim, 100 scenarios) and the **PX4 cross-check** script (`bench/px4_check.py`).
+Verified in the cloud dev environment:
+- **PX4 v1.15.4 SITL (SIH, headless)**: smoke test passes; 3 drones fly the API planner's legs from Ooty.
+- **Find loop on PX4 with a real detector**: alert → prior → 3 drones → replay mapper → YOLOv8n on real
+  HIT-UAV frames → detection → operator confirm → map update.
+- **Detector**: YOLOv8n, HIT-UAV person class, test mAP50 0.900 (15 epochs on CPU).
+- **Benchmark** (100 scenarios, real terrain and buildings) and the **PX4 cross-check** (3 scenarios, within 7–11%).
 
-| Owner | First real task |
+| Owner | Next task (the 14-day plan's hardening and pitch work) |
 |---|---|
 | A | Build PX4 on your own laptop (README Quick start); confirm `fleet.smoke_test` and QGroundControl show Ooty |
-| B | Run `fleet.run --drones 3` against your PX4; test API reconnects and a scenario reset button (Day 9) |
-| C | Wrong-prior tail (4/99 no-find vs 1/99 grid): coverage floor or prior-trust decay; tune `ALERT_SIGMA_M` |
-| D | **Critical path to 50%:** `data/fetch.sh hituav` → `perception.prepare_hituav` → `perception.train` → commit `perception/metrics.json`; then run the loop with `TRAAN_DETECTOR=yolo` |
-| E | Draw the detector's box on the frame (needs boxes from `/observe`), coverage %, mission timer |
-| F | `data/fetch.sh` OSM buildings into `sim/scenario.py` (module 1 → 5/5); README GIF; deck |
+| B | Scenario reset button and API reconnect tests (Day 9); run the loop on a laptop end to end |
+| C | Wrong-prior tail (Bayes no-find runs vs grid): coverage floor or prior-trust decay; confidence intervals |
+| D | Retrain 50 epochs on a GPU (`perception.train`), re-run `perception.operating_point`; 2-of-3 frame confirmation |
+| E | Draw the detector's box on the frame, coverage %, mission timer |
+| F | Commit `data/osm.json` from a laptop (`data/fetch.sh`) so buildings come from OSM; README GIF; video; deck |
 
 ## Demo video (2:30)
 

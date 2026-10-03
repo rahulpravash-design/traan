@@ -15,5 +15,72 @@
     "device": "cpu (3 threads)",
     "train_images": 2029,
     "wall_time_min": 89.1
+  },
+  "operating_point": {
+    "conf_min": 0.6,
+    "frame_recall": 0.8,
+    "false_alarm_per_empty_frame": 0.018,
+    "target_recall": 0.8,
+    "frames": {
+      "person": 355,
+      "empty": 224
+    },
+    "sweep": [
+      {
+        "conf_min": 0.3,
+        "frame_recall": 0.949,
+        "false_alarm_per_empty_frame": 0.121
+      },
+      {
+        "conf_min": 0.35,
+        "frame_recall": 0.93,
+        "false_alarm_per_empty_frame": 0.085
+      },
+      {
+        "conf_min": 0.4,
+        "frame_recall": 0.901,
+        "false_alarm_per_empty_frame": 0.08
+      },
+      {
+        "conf_min": 0.45,
+        "frame_recall": 0.873,
+        "false_alarm_per_empty_frame": 0.058
+      },
+      {
+        "conf_min": 0.5,
+        "frame_recall": 0.862,
+        "false_alarm_per_empty_frame": 0.049
+      },
+      {
+        "conf_min": 0.55,
+        "frame_recall": 0.834,
+        "false_alarm_per_empty_frame": 0.031
+      },
+      {
+        "conf_min": 0.6,
+        "frame_recall": 0.8,
+        "false_alarm_per_empty_frame": 0.018
+      },
+      {
+        "conf_min": 0.65,
+        "frame_recall": 0.707,
+        "false_alarm_per_empty_frame": 0.009
+      },
+      {
+        "conf_min": 0.7,
+        "frame_recall": 0.572,
+        "false_alarm_per_empty_frame": 0.0
+      },
+      {
+        "conf_min": 0.75,
+        "frame_recall": 0.335,
+        "false_alarm_per_empty_frame": 0.0
+      },
+      {
+        "conf_min": 0.8,
+        "frame_recall": 0.11,
+        "false_alarm_per_empty_frame": 0.0
+      }
+    ]
   }
 }
