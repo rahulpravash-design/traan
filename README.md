@@ -10,10 +10,13 @@ updates its probability map from what they did and didn't find, and leaves the f
 > (test mAP50 0.900). Everything is simulation: PX4 SITL and thermal *frame replay*. No real aircraft,
 > no live camera.
 
+**Demo video (2:30):** https://claude.ai/artifact/M85fGSSw6ac5yXEnF12hbk (recorded from a real run; see [docs/demo](docs/demo/README.md))
+
 ![Commander dashboard during a PX4 SITL run](docs/img/dashboard-px4.png)
-<sub>A Find-loop run with 3 PX4 SITL drones (blue). A drone's footprint crossed a hidden victim, the replay mapper sent a
-real HIT-UAV test frame, YOLO flagged a person at 65%, and the operator confirmed it (green). Orange = probability heatmap,
-red box = no-fly zone. Basemap tiles were not loaded in this capture.</sub>
+<sub>A frame from the demo recording: 3 PX4 SITL drones (blue) searching Ooty. A drone's footprint crossed a hidden
+victim, the replay mapper sent a real HIT-UAV test frame, and YOLO boxed the people (82%). The operator is about to
+confirm. Orange = probability heatmap (searched cells fade), red box = no-fly zone. The base map is drawn offline from
+SRTM terrain and building footprints.</sub>
 
 ## The Find loop
 

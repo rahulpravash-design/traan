@@ -44,19 +44,20 @@ def _rasterise(rings_latlon) -> np.ndarray:
     return mask.reshape(N_CELLS, N_CELLS)
 
 
+def rings_from_overpass(doc: dict):
+    return [([g["lat"] for g in el["geometry"]], [g["lon"] for g in el["geometry"]])
+            for el in doc.get("elements", [])
+            if el.get("type") == "way" and "building" in el.get("tags", {}) and el.get("geometry")]
+
+
 def buildings_from_overpass(doc: dict) -> np.ndarray:
-    rings = []
-    for el in doc.get("elements", []):
-        if el.get("type") == "way" and "building" in el.get("tags", {}) and el.get("geometry"):
-            rings.append(([g["lat"] for g in el["geometry"]], [g["lon"] for g in el["geometry"]]))
-    return _rasterise(rings)
+    return _rasterise(rings_from_overpass(doc))
 
 
 _RING = re.compile(r"\(\(([^()]+)\)")
 
 
-def buildings_from_open_buildings(rows, min_confidence=MIN_CONFIDENCE) -> np.ndarray:
-    """rows: dicts with Google Open Buildings columns (confidence, geometry as WKT POLYGON)."""
+def rings_from_open_buildings(rows, min_confidence=MIN_CONFIDENCE):
     rings = []
     for row in rows:
         if float(row["confidence"]) < min_confidence:
@@ -66,23 +67,35 @@ def buildings_from_open_buildings(rows, min_confidence=MIN_CONFIDENCE) -> np.nda
             continue
         pts = [p.split() for p in m.group(1).split(",")]
         rings.append(([float(p[1]) for p in pts], [float(p[0]) for p in pts]))
-    return _rasterise(rings)
+    return rings
+
+
+def buildings_from_open_buildings(rows, min_confidence=MIN_CONFIDENCE) -> np.ndarray:
+    """rows: dicts with Google Open Buildings columns (confidence, geometry as WKT POLYGON)."""
+    return _rasterise(rings_from_open_buildings(rows, min_confidence))
 
 
 @lru_cache(maxsize=1)
 def _load():
+    """(cell mask, footprint rings as (lats, lons), source name)"""
     if OSM_PATH.exists():
-        return buildings_from_overpass(json.loads(OSM_PATH.read_text())), "osm"
+        rings = rings_from_overpass(json.loads(OSM_PATH.read_text()))
+        return _rasterise(rings), rings, "osm"
     if GOB_PATH.exists():
         csv.field_size_limit(sys.maxsize)
         with open(GOB_PATH, newline="") as f:
-            return buildings_from_open_buildings(csv.DictReader(f)), "open-buildings"
-    return None, "synthetic"
+            rings = rings_from_open_buildings(csv.DictReader(f))
+        return _rasterise(rings), rings, "open-buildings"
+    return None, [], "synthetic"
 
 
 def load_buildings():
     return _load()[0]
 
 
-def buildings_source():
+def building_rings():
     return _load()[1]
+
+
+def buildings_source():
+    return _load()[2]

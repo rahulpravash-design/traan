@@ -89,6 +89,7 @@ export default function App() {
       command('alert', { lat: e.lngLat.lat, lon: e.lngLat.lng })
     })
     mapRef.current = m
+    window.__traanMap = m   // lets scripted demos (docs/demo) drop the pin at an exact coordinate
     return () => m.remove()
   }, [])
 
@@ -96,6 +97,13 @@ export default function App() {
     if (!ready || !grid) return
     const m = mapRef.current
     m.getSource('outline').setData(grid.outline)
+    if (!m.getSource('basemap')) {
+      // offline basemap from the API (terrain hillshade + building cells): works without internet tiles
+      const c = (k) => [world.corners[k][1], world.corners[k][0]]
+      m.addSource('basemap', { type: 'image', url: `${API}/world/basemap.png`, coordinates: [c('nw'), c('ne'), c('se'), c('sw')],
+        attribution: 'Terrain: NASA SRTM · Buildings: Google Open Buildings / OSM' })
+      m.addLayer({ id: 'basemap', type: 'raster', source: 'basemap', paint: { 'raster-opacity': 0.9 } }, 'heat')
+    }
     m.getSource('nofly').setData(world.nofly)
     const [w, s] = world.corners.sw.slice().reverse(), [e, n] = world.corners.ne.slice().reverse()
     m.fitBounds([[w, s], [e, n]], { padding: 40, duration: 0 })
@@ -172,7 +180,7 @@ export default function App() {
                 <b>{d.status === 'pending' ? 'Possible person' : d.status === 'confirmed' ? 'Confirmed' : 'Rejected'}</b>
                 <span>#{d.id} · {d.drone} · {(d.conf * 100).toFixed(0)}%</span>
               </div>
-              {!d.frame.startsWith('mock/') && <img src={`${PERCEPTION}/frames/${d.frame}`} alt={`thermal frame ${d.frame}`} />}
+              {!d.frame.startsWith('mock/') && <img src={`${PERCEPTION}/annotated/${d.frame}`} alt={`thermal frame ${d.frame} with detector boxes`} />}
               <div className="muted small">{d.lat.toFixed(5)}, {d.lon.toFixed(5)} · {d.frame}</div>
               {d.status === 'pending' && (
                 <div className="row">

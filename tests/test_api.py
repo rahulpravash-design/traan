@@ -92,3 +92,8 @@ def test_ws_snapshot_is_current_after_many_events():
         got = [ws.receive_json(), ws.receive_json()]
     by_drone = {e["drone"]: e for e in got}
     assert abs(by_drone["d1"]["lat"] - (11.40 + 299e-5)) < 1e-9 and "d2" in by_drone
+
+
+def test_offline_basemap_is_a_png():
+    r = client().get("/world/basemap.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[:4] == b"\x89PNG"
